@@ -114,6 +114,17 @@ public class Terminal {
 		
 		return cmd.value();
 	}
+
+	public boolean promptBoolean(
+		final String promptString
+	) throws 
+		IOException 
+	{
+		GetBooleanCommand cmd =
+			(GetBooleanCommand) prompt(promptString, GetBooleanCommand.BUILDER(), false);
+		
+		return cmd.value();
+	}
 	
 	public Command prompt(
 		final String promptString, 
@@ -176,7 +187,6 @@ public class Terminal {
 						println("Huh?");
 						println();
 					} else {
-						cmd.run();
 						return cmd;
 					}
 					

@@ -4,8 +4,13 @@ import java.io.*;
 import java.net.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.dashmud.cli.QuitCommand.QuitError;
+
 import com.db4o.Db4oEmbedded;
 import com.db4o.ObjectContainer;
+import com.db4o.ObjectSet;
+import com.db4o.ext.Db4oRecoverableException;
+import com.db4o.query.Predicate;
 
 public class DashMudServer {
 	private static final int PORT = 4444;
@@ -80,28 +85,18 @@ public class DashMudServer {
 		}
 	
 		public void run() {
+			Terminal t = null;
+			
 			try {
-				BufferedInputStream in = 
-					new BufferedInputStream(server.getInputStream());
+				t =
+					new Terminal(
+						new BufferedInputStream(server.getInputStream()), 
+						new PrintStream(server.getOutputStream()));
 				
-				PrintStream out = 
-					new PrintStream(server.getOutputStream());
-	
-				Terminal t =
-					new Terminal(in, out);
-				
-				t.push(Terminal.Color.LIGHT_GREEN);
-					t.println(BANNER);
-				t.pop();
-				
-				String username =
-					t.prompt("username: ", false);
-				
-				String password =
-					t.prompt("password: ", true);
-				
-				t.clearHistory();
-				
+				printBanner(t);
+
+				User user = getUser(t);
+
 				t.println();
 				
 				CommandBundle b =
@@ -115,12 +110,19 @@ public class DashMudServer {
 				b.register("exit", QuitCommand.BUILDER);
 				
 				while (true) {
-					t.prompt(username + "> ", b);
+					Command cmd = t.prompt(user.getName() + "> ", b);
+					
+					if (cmd != null) {
+						cmd.run(t, user);
+					}
 				}	
 				
-			} catch (IOException ioe) {
-				System.out.println("IOException on socket listen: " + ioe);
-				ioe.printStackTrace();
+			} catch (Exception e) {
+				System.out.println("An error occured: " + e);
+				e.printStackTrace();
+				
+			} catch (QuitError e) {	
+				t.println("Seeya!");
 				
 			} finally {
 				try {
@@ -132,6 +134,93 @@ public class DashMudServer {
 				
 				numConnections.decrementAndGet();
 			}
+		}
+
+		protected void printBanner(Terminal t) {
+			t.push(Terminal.Color.LIGHT_GREEN);
+				t.println(BANNER);
+			t.pop();
+		}
+
+		protected User getUser(
+			final Terminal t
+		) throws 
+			IOException, 
+			Exception,
+			InterruptedException 
+		{
+			User user = null;
+			
+			while (user == null) {
+				final String username =
+					t.prompt("username: ", false);
+
+				t.clearHistory();
+
+				
+				ObjectSet<User> users = db.query(new Predicate<User>() {
+					@Override
+					public boolean match(final User u) {
+						return u.getName().equals(username);
+					}
+				});
+				
+				if (users.size() == 1) {
+					user = users.get(0);
+					
+					boolean invalidPassword = true;
+					
+					while (invalidPassword) {
+						String password =
+							t.prompt("password: ", true);
+						
+						t.clearHistory();
+						
+						invalidPassword =
+							!Password.check(password, user.getHash());
+						
+						Thread.sleep(1000);
+					}
+					
+				} else {
+					t.println();
+					
+					if (t.promptBoolean("User \"" + username + "\" does not exist, would you like to create it? ")) {
+						boolean invalidPassword = true;
+						String password = null;
+						
+						while (invalidPassword) {
+							String firstPassword =
+								t.prompt("new password: ", true);
+							
+							String secondPassword =
+								t.prompt("re-enter password: ", true);
+							
+							t.println();
+							
+							invalidPassword = false;
+							
+							if (!firstPassword.equals(secondPassword)) {
+								t.println("Passwords don't match.");
+								invalidPassword = true;
+							}
+							
+							if (firstPassword.length() < 8) {
+								t.println("Passwords should be at least 8 characters long.");
+								invalidPassword = true;
+							}
+							
+							password = firstPassword;
+						}
+						
+						user = new User(username, Password.getSaltedHash(password));
+						db.store(user);
+						db.commit();
+					}
+				}
+			}
+			
+			return user;
 		}
 	}
 }

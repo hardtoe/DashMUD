@@ -31,7 +31,7 @@ public class TellCommand extends Command {
 	}
 
 	@Override
-	public void run() {
+	public void run(final Terminal terminal, final User user) {
 		// TODO Auto-generated method stub
 		
 	}
