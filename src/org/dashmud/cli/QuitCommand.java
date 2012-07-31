@@ -5,8 +5,8 @@ import java.util.LinkedList;
 import java.util.List;
 
 public class QuitCommand extends Command {
-	public static final CommandBuilder BUILDER =
-		new CommandBuilder() {
+	public static final CommandBuilder BUILDER(final User user) {
+		return new CommandBuilder() {
 			@Override
 			public List<String> getCompletions(final String prefix) {
 				return new LinkedList<String>();
@@ -27,6 +27,7 @@ public class QuitCommand extends Command {
 				return new QuitCommand(command);
 			}
 		};
+	}
 
 	public static class QuitError extends Error {
 		private static final long serialVersionUID = 158536888426101971L;
@@ -39,9 +40,9 @@ public class QuitCommand extends Command {
 	}
 
 	@Override
-	public void run(final Terminal terminal, final User user) {
+	public void run(final Shell shell) {
 		try {
-			if (terminal.promptBoolean("Do you want to disconnect from the server? ")) {
+			if (shell.promptBoolean("Do you want to disconnect from the server? ")) {
 				throw new QuitError();
 			}
 			

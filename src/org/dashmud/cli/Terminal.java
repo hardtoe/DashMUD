@@ -2,12 +2,26 @@ package org.dashmud.cli;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.PrintStream;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.ListIterator;
+import java.net.Socket;
+
 
 public class Terminal {
+	public static class Cursor {
+		public int x;
+		public int y;
+		
+		public Cursor( 
+			final int x,
+			final int y
+		) {
+			this.x = x;
+			this.y = y;
+		}
+	}
+
+	// FIXME: color should be context and should be (attr, fg, bg) instead
 	public static enum Color {
 		BLACK        (0, 30),
 		BLUE         (0, 34),
@@ -28,7 +42,7 @@ public class Terminal {
 		
 		private int attr;
 		private int color;
-
+	
 		private Color(
 			final int attr, 
 			final int color
@@ -42,32 +56,26 @@ public class Terminal {
 			return "\033[" + attr + ";" + color + "m";
 		}
 	}
-	
+
 	private final InputStream in;
 	private final PrintStream out;
-	
-	private final LinkedList<Color> contextStack;
-	
-	private StringBuilder b;
-	private int cursor;
-	
-	private final LinkedList<String> history;
-	private ListIterator<String> historyIterator;
-	
+
 	public Terminal(
 		final InputStream in,
-		final PrintStream out
+		final OutputStream out
 	) {
 		this.in = in;
-		this.out = out;
-		this.contextStack = new LinkedList<Color>();
-		this.history = new LinkedList<String>();
-	}
-
-	public void clearHistory() {
-		history.clear();
+		this.out = new PrintStream(out);
 	}
 	
+	public Terminal(
+		final Socket socket	
+	) throws 
+		IOException 
+	{
+		this(socket.getInputStream(), socket.getOutputStream());
+	}
+
 	public void print(final String s) {
 		out.print(s);
 	}
@@ -88,208 +96,36 @@ public class Terminal {
 		out.print(c);
 	}
 	
-	public void push(final Color color) {
-		out.print(color);
-		contextStack.push(color);
-	}
-	
-	public void pop() {
-		contextStack.pop();
-		
-		if (contextStack.isEmpty()) {
-			out.print(Color.GRAY);
-		} else {
-			out.print(contextStack.peek());
-		}
+	public int read() throws IOException {
+		return in.read();
 	}
 
-	public String prompt(
-		final String promptString, 
-		final boolean hideTyping
-	) throws 
-		IOException 
-	{
-		GetStringCommand cmd =
-			(GetStringCommand) prompt(promptString, GetStringCommand.BUILDER(), hideTyping);
-		
-		return cmd.value();
+	public void useAlternateScreenBuffer() {
+		print("\033[?47h");
 	}
 
-	public boolean promptBoolean(
-		final String promptString
-	) throws 
-		IOException 
-	{
-		GetBooleanCommand cmd =
-			(GetBooleanCommand) prompt(promptString, GetBooleanCommand.BUILDER(), false);
-		
-		return cmd.value();
-	}
-	
-	public Command prompt(
-		final String promptString, 
-		final CommandBuilder commandBuilder
-	) throws 
-		IOException 
-	{
-		return prompt(promptString, commandBuilder, false);
-	}
-	
-	public Command prompt(
-		final String promptString, 
-		final CommandBuilder commandBuilder,
-		final boolean hideTyping
-	) throws 
-		IOException 
-	{
-		print(promptString);
-
-		byte c = 0;
-		
-		b = new StringBuilder();
-		cursor = 0;
-		historyIterator = history.listIterator();
-		
-		inputLoop : while (true) {
-			c = (byte) in.read();
-			
-			switch (c) {
-				// FUNKY CODES
-				case (byte) 0xff:
-					c = (byte) in.read();
-					c = (byte) in.read();
-					break;
-					
-				// ESCAPE
-				case 0x1b:
-					handleEscape(promptString, hideTyping);
-					break;
-
-					
-				// CARRIAGE RETURN
-				case '\r':
-					break;
-					
-					
-				// ENTER
-				case '\n': 
-					println();
-					history.push(b.toString());
-					
-					while (history.size() > 500) {
-						history.pop();
-					}
-					
-					Command cmd = 
-						commandBuilder.parse(b.toString());
-					
-					if (cmd == null) {
-						println("Huh?");
-						println();
-					} else {
-						return cmd;
-					}
-					
-					break inputLoop;
-					
-					
-				// BACKSPACE and DELETE
-				case 0x08: 
-				case 0x7f: 
-					if (b.length() > 0) {
-						if (cursor == b.length()) {
-							print((char) c);
-							cursor = Math.max(0, cursor - 1);
-							b.deleteCharAt(b.length() - 1);
-							
-						} else {
-							cursor = Math.max(0, cursor - 1);
-							b.deleteCharAt(cursor);
-							
-							refreshCurrentPrompt(promptString, hideTyping);
-						}
-					}
-					break;
-
-					
-				// TAB
-				case '\t':
-					if (!hideTyping) {
-						List<String> completions = 
-							commandBuilder.getCompletions(b.toString());
-	
-						if (completions.size() == 0) {
-							// do nothing
-							
-						} else if (completions.size() == 1) {
-							b = new StringBuilder(completions.get(0) + " ");
-							cursor = b.length();
-							refreshCurrentPrompt(promptString, hideTyping);
-							
-						} else {
-							println();
-							printCompletions(completions);
-							println();
-							
-							print(promptString);
-							print(b.toString());
-						}
-					}
-					break;
-					
-					
-				// input characters
-				default:
-					if (cursor == b.length()) {
-						if (hideTyping) {
-							print('*');
-						} else {
-							print((char) c);
-						}
-						
-						b.append((char) c);
-						cursor++;
-						
-					} else {
-						b.insert(cursor, (char) c);
-						cursor++;
-						
-						refreshCurrentPrompt(promptString, hideTyping);
-					}
-					
-					break;
-			}
-		}
-		
-		return null;
+	public void maximizeWindow() {
+		print("\033[9;1t");
 	}
 
-	private void printCompletions(
-		final List<String> completions
-	) {
-		for (String item : completions) {
-			println("  " + item);
-		}
+	public void hideScrollbar() {
+		print("\033[?30l");
 	}
 
-	protected void refreshCurrentPrompt(
-		final String promptString, 
-		final boolean hideTyping
-	) {
-		print('\r'); // carriage return only, maybe should be HOME?
-		print(promptString);
+	public Cursor getTermSize() {
+		print("\033[18t");
 		
-		if (hideTyping) {
-			print(b.toString().replaceAll(".", "*"));
-		} else {
-			print(b.toString());
-		}
+		Cursor size =
+			new Cursor(0, 0);
 		
-		print(" ");
-		clearRestOfLine();
-		cursorLeft(b.length() - cursor + 1);
+		StringBuilder b =
+			new StringBuilder();
+		
+		//byte c = in.read();
+		
+		throw new UnsupportedOperationException();
 	}
-	
+
 	public void clearRestOfLine() {
 		print("\033[K");
 	}
@@ -297,15 +133,15 @@ public class Terminal {
 	public void cursorLeft() {
 		print("\033[D");
 	}
-	
+
 	public void cursorRight() {
 		print("\033[C");
 	}
-	
+
 	public void cursorDown() {
 		print("\033[B");
 	}
-	
+
 	public void cursorUp() {
 		print("\033[A");
 	}
@@ -313,63 +149,16 @@ public class Terminal {
 	public void cursorLeft(int n) {
 		print("\033[" + n + "D");
 	}
-	
+
 	public void cursorRight(int n) {
 		print("\033[" + n + "C");
 	}
-	
+
 	public void cursorDown(int n) {
 		print("\033[" + n + "B");
 	}
-	
+
 	public void cursorUp(int n) {
 		print("\033[" + n + "A");
-	}
-	
-	private void handleEscape(
-		final String promptString, // this argument needs to be factored out somehow
-		final boolean hideTyping
-	) throws 
-		IOException 
-	{
-		byte c = (byte) in.read();
-		
-		// CSI
-		if (c == '[') {
-			c = (byte) in.read();
-			switch (c) {
-				case 'A': // TODO: History UP
-					if (historyIterator.hasNext()) {
-						b = new StringBuilder(historyIterator.next());
-						cursor = b.length();
-						refreshCurrentPrompt(promptString, hideTyping);
-					}
-					break;
-					
-				case 'B': // TODO: History DOWN 
-					if (historyIterator.hasPrevious()) {
-						b = new StringBuilder(historyIterator.previous());
-						cursor = b.length();
-						refreshCurrentPrompt(promptString, hideTyping);
-					}
-					break;
-				
-				case 'C': 
-					if (cursor < b.length()) {
-						cursor++;
-						cursorRight();
-					}
-					break;
-					
-				case 'D': 
-					if (cursor > 0) {
-						cursor--;
-						cursorLeft();
-					}
-					break;
-			}
-		} else {
-			return;
-		}
 	}
 }

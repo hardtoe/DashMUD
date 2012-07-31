@@ -85,35 +85,36 @@ public class DashMudServer {
 		}
 	
 		public void run() {
-			Terminal t = null;
+			Shell shell = null;
 			
 			try {
-				t =
-					new Terminal(
-						new BufferedInputStream(server.getInputStream()), 
-						new PrintStream(server.getOutputStream()));
-				
-				printBanner(t);
+				Terminal terminal = new Terminal(server);
+				shell =	new Shell(terminal);
 
-				User user = getUser(t);
+				printBanner(shell);
 
-				t.println();
+				User user = getUser(shell);
+
+				shell.println();
 				
 				CommandBundle b =
 					new CommandBundle();
 				
-				b.register("say", SayCommand.BUILDER);
-				b.register("tell", TellCommand.BUILDER);
-				b.register("whisper", TellCommand.BUILDER);
-				b.register("emote", EmoteCommand.BUILDER);
-				b.register("quit", QuitCommand.BUILDER);
-				b.register("exit", QuitCommand.BUILDER);
+				b.register("say", SayCommand.BUILDER(user));
+				b.register("move", MoveCommand.BUILDER(user)); 
+				b.register("go", MoveCommand.BUILDER(user));
+				b.register("tell", TellCommand.BUILDER(user));
+				b.register("whisper", TellCommand.BUILDER(user));
+				b.register("emote", EmoteCommand.BUILDER(user));
+				b.register("quit", QuitCommand.BUILDER(user));
+				b.register("exit", QuitCommand.BUILDER(user));
 				
 				while (true) {
-					Command cmd = t.prompt(user.getName() + "> ", b);
+					Command cmd = 
+						shell.prompt(user.getName() + "> ", b);
 					
 					if (cmd != null) {
-						cmd.run(t, user);
+						cmd.run(shell);
 					}
 				}	
 				
@@ -122,7 +123,7 @@ public class DashMudServer {
 				e.printStackTrace();
 				
 			} catch (QuitError e) {	
-				t.println("Seeya!");
+				shell.println("Seeya!");
 				
 			} finally {
 				try {
@@ -136,14 +137,14 @@ public class DashMudServer {
 			}
 		}
 
-		protected void printBanner(Terminal t) {
+		protected void printBanner(Shell t) {
 			t.push(Terminal.Color.LIGHT_GREEN);
 				t.println(BANNER);
 			t.pop();
 		}
 
 		protected User getUser(
-			final Terminal t
+			final Shell t
 		) throws 
 			IOException, 
 			Exception,

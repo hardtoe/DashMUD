@@ -1,6 +1,8 @@
 package org.dashmud.cli;
 
-public class User {
+import org.dashmud.engine.MudObject;
+
+public class User extends MudObject {
 	private final String name;
 	private final String hash;
 	
@@ -11,7 +13,7 @@ public class User {
 		this.name = name;
 		this.hash = hash;
 	}
-
+	
 	public String getName() {
 		return name;
 	}
@@ -19,6 +21,4 @@ public class User {
 	public String getHash() {
 		return hash;
 	}
-	
-	
 }

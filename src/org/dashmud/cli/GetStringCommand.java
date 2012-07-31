@@ -41,7 +41,7 @@ public class GetStringCommand extends Command {
 	}
 
 	@Override
-	public void run(final Terminal terminal, final User user) {
+	public void run(final Shell shell) {
 		// TODO Auto-generated method stub
 	}
 }
