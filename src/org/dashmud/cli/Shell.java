@@ -11,15 +11,12 @@ import java.util.ListIterator;
  * xterm reference: http://invisible-island.net/xterm/ctlseqs/ctlseqs.html
  */
 public class Shell {
-	final Terminal terminal;
+	private final Terminal terminal;
 	
 	private final LinkedList<Terminal.Color> contextStack;
 	
 	private StringBuilder b;
 	private int promptCursor;
-	
-	private final Terminal.Cursor cursor;
-	private Terminal.Cursor termSize;
 	
 	private final LinkedList<String> history;
 	private ListIterator<String> historyIterator;
@@ -30,14 +27,7 @@ public class Shell {
 		this.terminal = terminal;
 		this.contextStack = new LinkedList<Terminal.Color>();
 		this.history = new LinkedList<String>();
-		this.cursor = new Terminal.Cursor(0, 0);
-		
-		terminal.useAlternateScreenBuffer(); 
-		terminal.hideScrollbar();
-		terminal.maximizeWindow();
-		//termSize = terminal.getTermSize();
 	}
-
 
 	public void clearHistory() {
 		history.clear();

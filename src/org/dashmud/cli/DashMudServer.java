@@ -85,11 +85,9 @@ public class DashMudServer {
 		}
 	
 		public void run() {
-			Shell shell = null;
-			
 			try {
 				Terminal terminal = new Terminal(server);
-				shell =	new Shell(terminal);
+				Shell shell = new Shell(terminal);
 
 				printBanner(shell);
 
@@ -123,7 +121,7 @@ public class DashMudServer {
 				e.printStackTrace();
 				
 			} catch (QuitError e) {	
-				shell.println("Seeya!");
+				// seeya!
 				
 			} finally {
 				try {
